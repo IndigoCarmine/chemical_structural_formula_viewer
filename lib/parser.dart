@@ -1,36 +1,50 @@
 import 'package:chemical_structural_formula_viewer/elements.dart';
+import 'package:flutter/material.dart';
 import 'package:xml/xml.dart';
 
-T2? _try<T1, T2>(T2? Function(T1) f, T1? x) => x == null ? null : f(x);
+/// null safe join function
+/// null -> null
+///x -> f(x) : T1 ->T2?
+T2? join<T1, T2>(T2? Function(T1) f, T1? x) => x == null ? null : f(x);
 
 //  cml parser
 StructurePage? parseCml(String xml) {
   var document = XmlDocument.parse(xml);
   var fragments = <Fragment>[];
-  var pageBoundingBox = BoundingBox(0, 0, 0, 0);
   for (var mol in document.findAllElements('molecule')) {
     var atoms = mol.findElements('atomArray').first.childElements;
     var bonds = mol.findAllElements('bondArray').first.childElements;
     var atomList = <Atom>[];
     var bondList = <Bond>[];
-    var molBoundingBox = BoundingBox(0, 0, 0, 0);
+
     for (var atom in atoms) {
       String? textId = atom.getAttribute('id');
       if (textId == null) return null;
       int id = int.tryParse(textId.substring(1)) ?? 0;
-      double x = _try(double.tryParse, atom.getAttribute('x2')) ?? 0.0;
-      double y = _try(double.tryParse, atom.getAttribute('y2')) ?? 0.0;
+      double x = join(double.tryParse, atom.getAttribute('x2')) ?? 0.0;
+      double y = -(join(double.tryParse, atom.getAttribute('y2')) ?? 0.0);
       String atomLabel = atom.getAttribute('elementType') ?? "None";
-      molBoundingBox
-        ..height = molBoundingBox.height < y ? molBoundingBox.height : y
-        ..width = molBoundingBox.width > x ? molBoundingBox.width : x;
 
       Atom a = Atom(atomLabel, id, x, y);
 
-      a.numHgens = _try(int.tryParse, atom.getAttribute('hydrogenCount')) ?? 0;
+      a.numHgens = join(int.tryParse, atom.getAttribute('hydrogenCount')) ?? 0;
 
       atomList.add(a);
     }
+    double xmin = atomList
+        .map((e) => e.x)
+        .reduce((value, element) => value < element ? value : element);
+    double ymin = atomList
+        .map((e) => e.y)
+        .reduce((value, element) => value < element ? value : element);
+    double xmax = atomList
+        .map((e) => e.x)
+        .reduce((value, element) => value > element ? value : element);
+    double ymax = atomList
+        .map((e) => e.y)
+        .reduce((value, element) => value > element ? value : element);
+    var molBoundingBox = BoundingBox(xmin, ymin, xmax - xmin, ymax - ymin);
+    // print(molBoundingBox);
     for (var bond in bonds) {
       var atoms = bond.getAttribute('atomRefs2')?.split(' ') ?? ['a0', 'a0'];
       var beginAtom = int.tryParse(atoms[0].substring(1)) ?? 0;
@@ -49,14 +63,35 @@ StructurePage? parseCml(String xml) {
         atoms: atomList.toSet(),
         bonds: bondList.toSet(),
         boundingBox: molBoundingBox));
-    pageBoundingBox
-      ..height = pageBoundingBox.height < molBoundingBox.height
-          ? pageBoundingBox.height
-          : molBoundingBox.height
-      ..width = pageBoundingBox.width > molBoundingBox.width
-          ? pageBoundingBox.width
-          : molBoundingBox.width;
   }
+
+  var pageBoundingBox = fragments
+      .map((e) => e.boundingBox)
+      .reduce((value, element) => value + element);
+
+  var margin = 2.0;
+  pageBoundingBox
+    ..x -= margin
+    ..y -= margin
+    ..width += margin * 2
+    ..height += margin * 2;
+
+  //why copy? because if it is not copied, original x and y will be 0 when for loop.
+  final pageBoundingBoxCopy = pageBoundingBox.copyWith();
+  //move all as pageBoundingBox x and y are 0
+  for (int i = 0; i < fragments.length; i++) {
+    fragments[i].boundingBox.x -= pageBoundingBoxCopy.x;
+    fragments[i].boundingBox.y -= pageBoundingBoxCopy.y;
+    for (var atom in fragments[i].atoms) {
+      atom.x -= pageBoundingBoxCopy.x;
+      atom.y -= pageBoundingBoxCopy.y;
+    }
+  }
+
+  pageBoundingBox
+    ..x = 0.0
+    ..y = 0.0;
+
   return StructurePage(
       name: "CML", fragments: fragments.toSet(), boundingBox: pageBoundingBox);
 }
@@ -240,6 +275,14 @@ StructurePage? parseCdxml(String xml) {
   var document = XmlDocument.parse(xml);
   var fragments = <Fragment>[];
   var xmlfragments = document.findAllElements('fragment');
+  var pageBoundingBox = document
+          .findAllElements('page')
+          .first
+          .getAttribute('BoundingBox')
+          ?.split(' ')
+          .map((e) => double.tryParse(e) ?? 0.0)
+          .toList() ??
+      [0, 0, 0, 0];
 
   for (var fragment in xmlfragments) {
     var atoms = fragment.findElements('n');
@@ -251,17 +294,18 @@ StructurePage? parseCdxml(String xml) {
       if (textId == null) return null;
       int id = int.tryParse(textId) ?? 0;
       double x =
-          _try(double.tryParse, atom.getAttribute('p')?.split(' ')[0]) ?? 0.0;
+          join(double.tryParse, atom.getAttribute('p')?.split(' ')[0]) ?? 0.0;
       double y =
-          _try(double.tryParse, atom.getAttribute('p')?.split(' ')[1]) ?? 0.0;
-      String atomLabel = atom.getAttribute('AS') ?? "None";
+          join(double.tryParse, atom.getAttribute('p')?.split(' ')[1]) ?? 0.0;
+      String atomLabel =
+          atom.getElement('t')?.getElement('s')?.innerText ?? "C";
       Atom a = Atom(atomLabel, id, x, y);
 
       atomList.add(a);
     }
     for (var bond in bonds) {
-      var beginAtom = _try(int.tryParse, bond.getAttribute('B')) ?? 0;
-      var endAtom = _try(int.tryParse, bond.getAttribute('E')) ?? 0;
+      var beginAtom = join(int.tryParse, bond.getAttribute('B')) ?? 0;
+      var endAtom = join(int.tryParse, bond.getAttribute('E')) ?? 0;
       var bondStyle = switch (bond.getAttribute('Order')) {
         "1" => BondStyle.single,
         "2" => BondStyle.double,
@@ -272,17 +316,20 @@ StructurePage? parseCdxml(String xml) {
       bondList.add(Bond(bondStyle, beginAtom, endAtom));
     }
 
-    List a = _try(double.tryParse,
-            fragment.getAttribute('BoundingBox')?.split(' ')) ??
+    List<double> a = fragment
+            .getAttribute('BoundingBox')
+            ?.split(' ')
+            .map((e) => double.tryParse(e) ?? 0.0)
+            .toList() ??
         [0, 0, 0, 0];
     fragments.add(Fragment(
         name: fragment.getAttribute('id') ?? "None",
         atoms: atomList.toSet(),
         bonds: bondList.toSet(),
-        boundingBox: Boun));
+        boundingBox: BoundingBox.fromDoublelist(a)));
   }
   return StructurePage(
       name: "CDXML",
       fragments: fragments.toSet(),
-      boundingBox: BoundingBox(0, 0, 0, 0));
+      boundingBox: BoundingBox.fromDoublelist(pageBoundingBox));
 }

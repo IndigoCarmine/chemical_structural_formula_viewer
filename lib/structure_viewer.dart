@@ -17,11 +17,12 @@ class _StructureViewerState extends State<StructureViewer> {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-        painter: StructurePainter(widget.page),
-        child: SizedBox(
-          width: 300,
-          height: 300,
-        ));
+      size: Size.infinite,
+      painter: StructurePainter(widget.page),
+      child: Expanded(
+        child: Container(),
+      ),
+    );
   }
 }
 
@@ -39,23 +40,37 @@ class StructurePainter extends CustomPainter {
     }
     var xScale = size.width / page!.boundingBox.width;
     var yScale = size.height / page!.boundingBox.height;
-    print('xScale: $xScale yScale: $yScale');
 
-    _drawLines(canvas, xScale, yScale, 4);
+    var Scale = xScale < yScale ? xScale : yScale;
 
-    const fontSize = 20.0;
+    print('Scale: $Scale');
+    print("page: ${page!.boundingBox}");
+
+    //fill background
+    var paint = Paint()..color = Colors.white;
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, page!.boundingBox.width * Scale,
+            page!.boundingBox.height * Scale),
+        paint);
+
+    _drawLines(canvas, Scale, Scale, 4);
+
+    _drawAtomLabel(canvas, Scale, Scale, 20.0);
+  }
+
+  void _drawAtomLabel(
+      Canvas canvas, double xScale, double yScale, double fontSize) {
     for (var fragment in page!.fragments) {
       for (var atom in fragment.atoms) {
         if (atom.atomLabel == 'C') continue;
         var paint = Paint()..color = Colors.white;
         canvas.drawCircle(
-            Offset(atom.x * xScale, atom.y * yScale), fontSize / 2 + 4, paint);
+            Offset(atom.x * xScale, atom.y * yScale), fontSize / 2 + 1, paint);
         var textPainter = TextPainter(
             textAlign: TextAlign.center,
             text: TextSpan(
                 text: atom.atomLabel,
-                style:
-                    const TextStyle(color: Colors.black, fontSize: fontSize)),
+                style: TextStyle(color: Colors.black, fontSize: fontSize)),
             textDirection: TextDirection.ltr);
         textPainter.layout();
         textPainter.paint(
@@ -67,8 +82,7 @@ class StructurePainter extends CustomPainter {
               textAlign: TextAlign.center,
               text: TextSpan(
                   text: "H${atom.numHgens}",
-                  style:
-                      const TextStyle(color: Colors.black, fontSize: fontSize)),
+                  style: TextStyle(color: Colors.black, fontSize: fontSize)),
               textDirection: TextDirection.ltr);
           HtextPainter.layout();
           HtextPainter.paint(
@@ -91,7 +105,7 @@ class StructurePainter extends CustomPainter {
         var paint = Paint()
           ..color = Colors.black
           ..strokeWidth = lineWidth;
-        // print('first: ${first.x} ${first.y}');
+
         if (bond.bondStyle == BondStyle.single) {
           canvas.drawLine(Offset(first.x * xScale, first.y * yScale),
               Offset(second.x * xScale, second.y * yScale), paint);
@@ -104,8 +118,9 @@ class StructurePainter extends CustomPainter {
 
   void _drawDoubleBond(Canvas canvas, Atom beginAtom, Atom endAtom,
       double xScale, double yScale, bool isClockwise, Paint paint) {
-    var distline = isClockwise ? 0.3 : -0.3; //distance between two lines
-    var distTarminal = 0.3; //distance from end of line to tarminal
+    var space = 4;
+    var distline = isClockwise ? space : -space; //distance between two lines
+    var distTarminal = space; //distance from end of line to tarminal
 
     double angleFrom(Vector2 v1, Vector2 v2) {
       var angle = v1.angleTo(v2);
