@@ -1,5 +1,4 @@
 import 'package:chemical_structural_formula_viewer/elements.dart';
-import 'package:flutter/material.dart';
 import 'package:xml/xml.dart';
 
 /// null safe join function
@@ -49,14 +48,14 @@ StructurePage? parseCml(String xml) {
       var atoms = bond.getAttribute('atomRefs2')?.split(' ') ?? ['a0', 'a0'];
       var beginAtom = int.tryParse(atoms[0].substring(1)) ?? 0;
       var endAtom = int.tryParse(atoms[1].substring(1)) ?? 0;
-      var bondStyle = switch (bond.getAttribute('order')) {
-        "1" => BondStyle.single,
-        "2" => BondStyle.double,
-        "3" => BondStyle.triple,
-        _ => BondStyle.single
+      var type = switch (bond.getAttribute('order')) {
+        "1" => BondType.single,
+        "2" => BondType.double,
+        "3" => BondType.triple,
+        _ => BondType.single
       };
 
-      bondList.add(Bond(bondStyle, beginAtom, endAtom));
+      bondList.add(Bond(BondStyle(bondType: type), beginAtom, endAtom));
     }
     fragments.add(Fragment(
         name: mol.getAttribute('title') ?? "None",
@@ -285,35 +284,36 @@ StructurePage? parseCdxml(String xml) {
       [0, 0, 0, 0];
 
   for (var fragment in xmlfragments) {
-    var atoms = fragment.findElements('n');
-    var bonds = fragment.findElements('b');
-    var atomList = <Atom>[];
-    var bondList = <Bond>[];
-    for (var atom in atoms) {
-      String? textId = atom.getAttribute('id');
+    var xmlAtoms = fragment.findElements('n');
+    var xmlBonds = fragment.findElements('b');
+    var atoms = <Atom>[];
+    var bonds = <Bond>[];
+    for (var xmlAtom in xmlAtoms) {
+      String? textId = xmlAtom.getAttribute('id');
       if (textId == null) return null;
       int id = int.tryParse(textId) ?? 0;
       double x =
-          join(double.tryParse, atom.getAttribute('p')?.split(' ')[0]) ?? 0.0;
+          join(double.tryParse, xmlAtom.getAttribute('p')?.split(' ')[0]) ??
+              0.0;
       double y =
-          join(double.tryParse, atom.getAttribute('p')?.split(' ')[1]) ?? 0.0;
+          join(double.tryParse, xmlAtom.getAttribute('p')?.split(' ')[1]) ??
+              0.0;
       String atomLabel =
-          atom.getElement('t')?.getElement('s')?.innerText ?? "C";
-      Atom a = Atom(atomLabel, id, x, y);
+          xmlAtom.getElement('t')?.getElement('s')?.innerText ?? "C";
 
-      atomList.add(a);
+      atoms.add(Atom(atomLabel, id, x, y));
     }
-    for (var bond in bonds) {
-      var beginAtom = join(int.tryParse, bond.getAttribute('B')) ?? 0;
-      var endAtom = join(int.tryParse, bond.getAttribute('E')) ?? 0;
-      var bondStyle = switch (bond.getAttribute('Order')) {
-        "1" => BondStyle.single,
-        "2" => BondStyle.double,
-        "3" => BondStyle.triple,
-        _ => BondStyle.single
+    for (var xmlBond in xmlBonds) {
+      var beginAtom = join(int.tryParse, xmlBond.getAttribute('B')) ?? 0;
+      var endAtom = join(int.tryParse, xmlBond.getAttribute('E')) ?? 0;
+      var type = switch (xmlBond.getAttribute('Order')) {
+        "1" => BondType.single,
+        "2" => BondType.double,
+        "3" => BondType.triple,
+        _ => BondType.single
       };
 
-      bondList.add(Bond(bondStyle, beginAtom, endAtom));
+      bonds.add(Bond(BondStyle(bondType: type), beginAtom, endAtom));
     }
 
     List<double> a = fragment
@@ -324,8 +324,8 @@ StructurePage? parseCdxml(String xml) {
         [0, 0, 0, 0];
     fragments.add(Fragment(
         name: fragment.getAttribute('id') ?? "None",
-        atoms: atomList.toSet(),
-        bonds: bondList.toSet(),
+        atoms: atoms.toSet(),
+        bonds: bonds.toSet(),
         boundingBox: BoundingBox.fromDoublelist(a)));
   }
   return StructurePage(

@@ -1,5 +1,4 @@
 import 'package:chemical_structural_formula_viewer/parser.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 String benzeneCml = '''

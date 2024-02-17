@@ -1,3 +1,6 @@
+import 'package:chemical_structural_formula_viewer/extention.dart';
+import 'package:vector_math/vector_math_64.dart';
+
 class Atom {
   String atomLabel;
   int numHgens;
@@ -12,22 +15,48 @@ class Atom {
   String toString() {
     return 'Atom{atomLabel: $atomLabel, id: $id, x: $x, y: $y}';
   }
+
+  Atom copyWith() {
+    return Atom(atomLabel, id, x, y, numHgens: numHgens);
+  }
 }
 
-enum BondStyle { single, double, triple }
+enum BondType { single, double, triple }
+
+enum BondPosition { center, left, right }
+
+class BondStyle {
+  BondType bondType;
+  BondPosition bondPosition;
+  BondStyle(
+      {this.bondType = BondType.single,
+      this.bondPosition = BondPosition.center});
+  @override
+  String toString() {
+    return 'BondStyle{bondType: $bondType, bondLength: $bondPosition}';
+  }
+}
 
 class Bond {
   BondStyle bondStyle;
 
-  int biginAtom;
+  int beginAtom;
   int endAtom;
 
-  Bond(this.bondStyle, this.biginAtom, this.endAtom);
+  Bond(this.bondStyle, this.beginAtom, this.endAtom);
 
   @override
   String toString() {
-    return 'Bond{biginAtom: $biginAtom, endAtom: $endAtom, bondStyle: $bondStyle}';
+    return 'Bond{beginAtom: $beginAtom, endAtom: $endAtom, bondStyle: $bondStyle}';
   }
+
+  Bond copyWith() {
+    return Bond(bondStyle, beginAtom, endAtom);
+  }
+
+  bool get isSingleBond => bondStyle.bondType == BondType.single;
+  bool get isDoubleBond => bondStyle.bondType == BondType.double;
+  bool get isTripleBond => bondStyle.bondType == BondType.triple;
 }
 
 class BoundingBox {
@@ -83,6 +112,53 @@ class Fragment {
   @override
   String toString() {
     return 'Fragment{name: $name, atoms: $atoms, bonds: $bonds}';
+  }
+
+  void fixBondPosition() {
+    for (var bond in bonds) {
+      if (bond.bondStyle.bondType == BondType.single) continue;
+      var atom1 = bond.bAtom(atoms);
+      var atom2 = bond.eAtom(atoms);
+      var bondVector = bond.bondVector(atoms);
+      var atomsUporDown = bonds.where((element) {
+        //get only the bonds that are connected to the current bond
+        if (element == bond) return false;
+        return element.beginAtom == bond.beginAtom ||
+            element.endAtom == bond.beginAtom ||
+            element.beginAtom == bond.endAtom ||
+            element.endAtom == bond.endAtom;
+      }).map((anotherBond) {
+        print('e: $anotherBond');
+
+        //get the atoms that are connected to the current bond
+        Vector2 anotherBondVector = anotherBond.bondVector(atoms);
+        if (anotherBond.endAtom == bond.beginAtom ||
+            anotherBond.endAtom == bond.endAtom) {
+          anotherBondVector = -anotherBondVector;
+        }
+
+        var angle = anotherBondVector.angleTo(bondVector);
+        print('angle: $angle');
+        if (angle >= 0) {
+          return 1;
+        } else {
+          return -1;
+        }
+      }).reduce((value, element) => value + element);
+
+      switch (atomsUporDown) {
+        case < 0:
+          bond.bondStyle.bondPosition = BondPosition.right;
+          break;
+        case 0:
+          bond.bondStyle.bondPosition = BondPosition.center;
+          break;
+        case > 0:
+          bond.bondStyle.bondPosition = BondPosition.left;
+          break;
+      }
+      // bond.bondStyle.bondPosition = BondPosition.left;
+    }
   }
 }
 
