@@ -19,9 +19,9 @@ class _StructureViewerState extends State<StructureViewer> {
     return CustomPaint(
       size: Size.infinite,
       painter: StructurePainter(widget.page),
-      child: Expanded(
-        child: Container(),
-      ),
+      // child: Expanded(
+      //   child: Container(),
+      // ),
     );
   }
 }
@@ -50,9 +50,9 @@ class StructurePainter extends CustomPainter {
             page!.boundingBox.height * scale),
         paint);
 
-    _drawLines(canvas, scale, scale, 4);
+    _drawLines(canvas, scale, 4);
 
-    _drawAtomLabel(canvas, scale, scale, 20.0);
+    _drawAtomLabel(canvas, scale);
   }
 
   @override
@@ -60,14 +60,15 @@ class StructurePainter extends CustomPainter {
     return false;
   }
 
-  void _drawAtomLabel(
-      Canvas canvas, double xScale, double yScale, double fontSize) {
+  void _drawAtomLabel(Canvas canvas, double scale) {
+    var circleMargin = scale / 5;
     for (var fragment in page!.fragments) {
       for (var atom in fragment.atoms) {
+        var fontSize = atom.fontSize * scale;
         if (atom.atomLabel == 'C') continue;
         var paint = Paint()..color = Colors.white;
-        canvas.drawCircle(
-            Offset(atom.x * xScale, atom.y * yScale), fontSize / 2 + 1, paint);
+        canvas.drawCircle(Offset(atom.x * scale, atom.y * scale),
+            fontSize / 2 + circleMargin, paint);
         var textPainter = TextPainter(
             textAlign: TextAlign.center,
             text: TextSpan(
@@ -77,8 +78,8 @@ class StructurePainter extends CustomPainter {
         textPainter.layout();
         textPainter.paint(
             canvas,
-            Offset(atom.x * xScale - textPainter.width / 2,
-                atom.y * yScale - textPainter.height / 2));
+            Offset(atom.x * scale - textPainter.width / 2,
+                atom.y * scale - textPainter.height / 2));
         if (atom.numHgens > 0) {
           var htextPainter = TextPainter(
               textAlign: TextAlign.center,
@@ -89,47 +90,49 @@ class StructurePainter extends CustomPainter {
           htextPainter.layout();
           htextPainter.paint(
               canvas,
-              Offset(atom.x * xScale + textPainter.width,
-                  atom.y * yScale - textPainter.height / 2));
+              Offset(atom.x * scale + textPainter.width,
+                  atom.y * scale - textPainter.height / 2));
         }
       }
     }
   }
 
-  void _drawLines(
-      Canvas canvas, double xScale, double yScale, double lineWidth) {
+  void _drawLines(Canvas canvas, double scale, double lineWidth) {
     for (var fragment in page!.fragments) {
       for (var bond in fragment.bonds) {
         var first = bond.bAtom(fragment.atoms);
         var second = bond.eAtom(fragment.atoms);
+
+        var firstLine = Vector2(second.x - first.x, second.y - first.y);
+
         var paint = Paint()
           ..color = Colors.black
-          ..strokeWidth = lineWidth;
+          ..strokeWidth = lineWidth * firstLine.length / 100 * scale;
 
         if (bond.isSingleBond) {
-          canvas.drawLine(Offset(first.x * xScale, first.y * yScale),
-              Offset(second.x * xScale, second.y * yScale), paint);
+          canvas.drawLine(Offset(first.x * scale, first.y * scale),
+              Offset(second.x * scale, second.y * scale), paint);
         } else if (bond.isDoubleBond) {
-          _drawDoubleBond(canvas, first, second, xScale, yScale,
-              bond.bondStyle.bondPosition == BondPosition.left, paint);
+          _drawDoubleBond(canvas, first, second, scale,
+              bond.bondStyle.bondPosition == BondPosition.right, paint);
         }
       }
     }
   }
 
   void _drawDoubleBond(Canvas canvas, Atom beginAtom, Atom endAtom,
-      double xScale, double yScale, bool isClockwise, Paint paint) {
-    var space = 4;
-    var distline = isClockwise ? space : -space; //distance between two lines
-    var distTarminal = space; //distance from end of line to tarminal
-
+      double scale, bool isClockwise, Paint paint) {
     // draw single line and draw shorter second line
     //tarminal of second line is inner side of first line
-    canvas.drawLine(Offset(beginAtom.x * xScale, beginAtom.y * yScale),
-        Offset(endAtom.x * xScale, endAtom.y * yScale), paint);
+    canvas.drawLine(Offset(beginAtom.x * scale, beginAtom.y * scale),
+        Offset(endAtom.x * scale, endAtom.y * scale), paint);
 
     var firstLine = Vector2(endAtom.x - beginAtom.x, endAtom.y - beginAtom.y);
     var rotMatrix = Matrix2.rotation(firstLine.angle());
+
+    var space = firstLine.length / 10; //space between two lines
+    var distline = isClockwise ? space : -space; //distance between two lines
+    var distTarminal = space; //distance from end of line to tarminal
 
     var secondLineStart = Vector2(beginAtom.x, beginAtom.y) +
         rotMatrix * Vector2(distTarminal.toDouble(), -distline.toDouble());
@@ -138,8 +141,8 @@ class StructurePainter extends CustomPainter {
         rotMatrix * Vector2(-distTarminal.toDouble(), -distline.toDouble());
 
     canvas.drawLine(
-        Offset(secondLineStart.x * xScale, secondLineStart.y * yScale),
-        Offset(secondLineEnd.x * xScale, secondLineEnd.y * yScale),
+        Offset(secondLineStart.x * scale, secondLineStart.y * scale),
+        Offset(secondLineEnd.x * scale, secondLineEnd.y * scale),
         paint);
   }
 }

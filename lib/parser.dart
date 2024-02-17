@@ -1,4 +1,5 @@
 import 'package:chemical_structural_formula_viewer/elements.dart';
+import 'package:chemical_structural_formula_viewer/extention.dart';
 import 'package:xml/xml.dart';
 
 /// null safe join function
@@ -11,8 +12,10 @@ StructurePage? parseCml(String xml) {
   var document = XmlDocument.parse(xml);
   var fragments = <Fragment>[];
   for (var mol in document.findAllElements('molecule')) {
-    var atoms = mol.findElements('atomArray').first.childElements;
-    var bonds = mol.findAllElements('bondArray').first.childElements;
+    var atoms = mol.findElements('atomArray').firstOrNull?.childElements ?? [];
+    var bonds =
+        mol.findAllElements('bondArray').firstOrNull?.childElements ?? [];
+
     var atomList = <Atom>[];
     var bondList = <Bond>[];
 
@@ -24,7 +27,7 @@ StructurePage? parseCml(String xml) {
       double y = -(join(double.tryParse, atom.getAttribute('y2')) ?? 0.0);
       String atomLabel = atom.getAttribute('elementType') ?? "None";
 
-      Atom a = Atom(atomLabel, id, x, y);
+      Atom a = Atom(atomLabel, id, x, y, fontSize: 1);
 
       a.numHgens = join(int.tryParse, atom.getAttribute('hydrogenCount')) ?? 0;
 
@@ -62,6 +65,12 @@ StructurePage? parseCml(String xml) {
         atoms: atomList.toSet(),
         bonds: bondList.toSet(),
         boundingBox: molBoundingBox));
+
+    for (var bond in bondList) {
+      if (bond.bondStyle.bondPosition == BondPosition.unknown) {
+        bond.fixDoubleBondPosision(atomList.toSet(), bondList.toSet());
+      }
+    }
   }
 
   var pageBoundingBox = fragments
@@ -271,9 +280,27 @@ String a = '''
 
 //cdxml parser
 StructurePage? parseCdxml(String xml) {
-  var document = XmlDocument.parse(xml);
+  XmlDocument document;
+  try {
+    document = XmlDocument.parse(xml);
+  } catch (e) {
+    return null;
+  }
+  int defaultLabelSize = join(
+          int.tryParse,
+          document
+              .findElements('CDXML')
+              .firstOrNull
+              ?.getAttribute('LabelSize')) ??
+      12;
   var fragments = <Fragment>[];
-  var xmlfragments = document.findAllElements('fragment');
+  var xmlfragments = document
+      .findElements('CDXML')
+      .firstOrNull
+      ?.findElements("page")
+      .firstOrNull
+      ?.findElements('fragment');
+  if (xmlfragments == null) return null;
   var pageBoundingBox = document
           .findAllElements('page')
           .first
@@ -301,7 +328,7 @@ StructurePage? parseCdxml(String xml) {
       String atomLabel =
           xmlAtom.getElement('t')?.getElement('s')?.innerText ?? "C";
 
-      atoms.add(Atom(atomLabel, id, x, y));
+      atoms.add(Atom(atomLabel, id, x, y, fontSize: defaultLabelSize));
     }
     for (var xmlBond in xmlBonds) {
       var beginAtom = join(int.tryParse, xmlBond.getAttribute('B')) ?? 0;
@@ -312,10 +339,15 @@ StructurePage? parseCdxml(String xml) {
         "3" => BondType.triple,
         _ => BondType.single
       };
-
-      bonds.add(Bond(BondStyle(bondType: type), beginAtom, endAtom));
+      var position = switch (xmlBond.getAttribute("DoublePosition")) {
+        "Left" => BondPosition.left,
+        "Right" => BondPosition.right,
+        "Center" => BondPosition.center,
+        _ => BondPosition.unknown
+      };
+      bonds.add(Bond(BondStyle(bondType: type, bondPosition: position),
+          beginAtom, endAtom));
     }
-
     List<double> a = fragment
             .getAttribute('BoundingBox')
             ?.split(' ')
@@ -327,6 +359,12 @@ StructurePage? parseCdxml(String xml) {
         atoms: atoms.toSet(),
         bonds: bonds.toSet(),
         boundingBox: BoundingBox.fromDoublelist(a)));
+
+    for (var bond in fragments.last.bonds) {
+      if (bond.bondStyle.bondPosition == BondPosition.unknown) {
+        bond.fixDoubleBondPosision(atoms.toSet(), bonds.toSet());
+      }
+    }
   }
   return StructurePage(
       name: "CDXML",

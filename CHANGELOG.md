@@ -1,3 +1,3 @@
 ## 0.0.1
-
-* TODO: Describe initial release.
+It supports CDXML, CML.
+(but not beautiful, just a simple display.)

@@ -20,4 +20,43 @@ extension BondEx on Bond {
   Vector2 ePos(Set<Atom> atoms) => Vector2(eAtom(atoms).x, eAtom(atoms).y);
 
   Vector2 bondVector(Set<Atom> atoms) => ePos(atoms) - bPos(atoms);
+
+  void fixDoubleBondPosision(Set<Atom> atoms, Set<Bond> bonds) {
+    if (bondStyle.bondType == BondType.single) return;
+    var bondVector = this.bondVector(atoms);
+    var atomsUporDown = bonds.where((element) {
+      //get only the bonds that are connected to the current bond
+      if (element == this) return false;
+      return element.beginAtom == beginAtom ||
+          element.endAtom == beginAtom ||
+          element.beginAtom == endAtom ||
+          element.endAtom == endAtom;
+    }).map((anotherBond) {
+      //get the atoms that are connected to the current bond
+      Vector2 anotherBondVector = anotherBond.bondVector(atoms);
+      if (anotherBond.endAtom == beginAtom || anotherBond.endAtom == endAtom) {
+        anotherBondVector = -anotherBondVector;
+      }
+
+      var angle = anotherBondVector.angleTo(bondVector);
+      if (angle >= 0) {
+        return 1;
+      } else {
+        return -1;
+      }
+    }).reduce((value, element) => value + element);
+
+    switch (atomsUporDown) {
+      case < 0:
+        bondStyle.bondPosition = BondPosition.left;
+        break;
+      case 0:
+        bondStyle.bondPosition = BondPosition.center;
+        break;
+      case > 0:
+        bondStyle.bondPosition = BondPosition.right;
+        break;
+    }
+    // bondStyle.bondPosition = BondPosition.left;
+  }
 }

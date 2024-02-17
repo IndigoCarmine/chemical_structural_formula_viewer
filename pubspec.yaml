@@ -1,7 +1,7 @@
 name: chemical_structural_formula_viewer
-description: "A new Flutter package project."
+description: "Chemical Structure Viewer for flutter."
 version: 0.0.1
-homepage:
+repository: https://github.com/IndigoCarmine/chemical_structural_formula_viewer
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
